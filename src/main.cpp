@@ -134,7 +134,8 @@ void InitBME()
 
 MultiMeasurement MMeasurement;
 
-void CreateMeasurementJsonString(char* buffer, long long epoch, float temp, float press, float hum, bool stored){
+void CreateMeasurementJsonString(char *buffer, long long epoch, float temp, float press, float hum, bool stored)
+{
   sprintf(buffer, "{\"env\":{\"epoch\":%llu,\"temp\":%f, \"press\":%f,\"hum\":%f,\"stored\":%s}}", epoch, temp, press, hum, stored ? "true" : "false");
 }
 
@@ -154,7 +155,6 @@ void ReadBME(time_t epoch)
   MMeasurement.hum += hum;
   MMeasurement.numMeasurements++;
 }
-
 
 void StoreBME(ulong epoch)
 {
@@ -183,7 +183,7 @@ void StoreBME(ulong epoch)
 
   Serial.printf("Storing measurements in file: %s.\n", filename);
 
-  File file = LittleFS.open(filename, LittleFS.exists(filename) ? "a": "w");
+  File file = LittleFS.open(filename, LittleFS.exists(filename) ? "a" : "w");
 
   Measurement measurement;
   measurement.temp = MMeasurement.temp / MMeasurement.numMeasurements;
@@ -254,8 +254,8 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   }
 }
 
-void GetWsReport(AsyncWebSocketClient *client){
-
+void GetWsReport(AsyncWebSocketClient *client)
+{
 }
 
 void initWebSocket()
@@ -337,16 +337,6 @@ void setup()
               response->addHeader("Content-Encoding", "gzip");
               request->send(response); });
 
-  server.on("/patrick.jpg", HTTP_GET, [](AsyncWebServerRequest *request)
-            {
-              AsyncWebServerResponse *response = request->beginResponse_P(200, "image/jpeg", patrickNagel1_jpg, sizeof(patrickNagel1_jpg));
-              request->send(response); });
-
-  server.on("/image1.jpg", HTTP_GET, [](AsyncWebServerRequest *request)
-            {
-              AsyncWebServerResponse *response = request->beginResponse_P(200, "image/jpeg", Image1_jpg, sizeof(Image1_jpg));
-              request->send(response); });
-
   server.on("/leave3.png", HTTP_GET, [](AsyncWebServerRequest *request)
             {
               AsyncWebServerResponse *response = request->beginResponse_P(200, "image/png", leave3_png, sizeof(leave3_png));
@@ -355,14 +345,6 @@ void setup()
   server.on("/prototype.jpg", HTTP_GET, [](AsyncWebServerRequest *request)
             {
               AsyncWebServerResponse *response = request->beginResponse_P(200, "image/jpg", prototype_jpg, sizeof(prototype_jpg));
-              request->send(response); });
-
-  server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) // send logged data from array
-            {
-              AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", recordBuffer, sizeof(recordBuffer));
-              response->addHeader("Access-Control-Allow-Origin", "*");
-              response->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-              response->addHeader("Access-Control-Allow-Headers", "Content-Type");
               request->send(response); });
 
   server.on("/upload.html", HTTP_GET, [](AsyncWebServerRequest *request)
