@@ -36,8 +36,8 @@ time_t now;   // this is the epoch
 struct tm tm; // the structure tm holds time information in a more convenient way
 
 // Replace with your network credentials
-const char *ssid = "_THOES_";
-const char *password = "0598613193";
+const char *ssid = "_yourSsid_";
+const char *password = "_yourWifiPw_";
 
 StaticJsonDocument<1000> jsonDoc;
 
