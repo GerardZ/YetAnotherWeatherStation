@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Analog Clock</title>
+</head>
+<body>
+
+<svg width="210" height="210" xmlns="http://www.w3.org/2000/svg">
+    <!-- Circle for clock face -->
+    <circle cx="105" cy="105" r="100" fill="white" stroke="black" stroke-width="2"/>
+
+    <!-- Clock hands -->
+    <line id="hour" x1="105" y1="105" x2="105" y2="45" stroke="black" stroke-width="6" stroke-linecap="round"/>
+    <line id="minute" x1="105" y1="105" x2="105" y2="25" stroke="blue" stroke-width="4" stroke-linecap="round"/>
+    <line id="second" x1="105" y1="105" x2="105" y2="15" stroke="red" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Clock center -->
+    <circle cx="105" cy="105" r="5" fill="black"/>
+</svg>
+
+<script>
+    function updateClock() {
+        const now = new Date();
+
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+
+        const hourHand = document.getElementById("hour");
+        const minuteHand = document.getElementById("minute");
+        const secondHand = document.getElementById("second");
+
+        const secondAngle = (seconds * 6) - 90; // 360/60 = 6 degrees per second
+        const minuteAngle = (minutes * 6) + (seconds * 0.1) - 90; // 360/60 = 6 degrees per minute
+        const hourAngle = (hours * 30) + (minutes * 0.5) - 90; // 360/12 = 30 degrees per hour
+
+        hourHand.setAttribute("transform", `rotate(${hourAngle}, 105, 105)`);
+        minuteHand.setAttribute("transform", `rotate(${minuteAngle}, 105, 105)`);
+        secondHand.setAttribute("transform", `rotate(${secondAngle}, 105, 105)`);
+    }
+
+    setInterval(updateClock, 1000); // Update every second
+    updateClock(); // Initial update
+</script>
+
+</body>
+</html>

@@ -1,0 +1,38 @@
+<head>
+    <title>ESP Web Server</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="w3.css">
+
+    <link rel="stylesheet" href="app.css">
+
+    <script src="ESP7Segment.js"></script>
+</head>
+
+<body>
+    <div id="display">
+
+
+    </div>
+
+
+
+    <script>
+
+        var display;
+        document.addEventListener("DOMContentLoaded", function () {
+
+            display = new ESP7Segment("display", 4, 20);
+
+            display.SetValue(-10.2)
+
+
+
+           
+        });
+
+    </script>
+
+
+
+</body>

@@ -1,0 +1,309 @@
+<head>
+    <title>ESP Web Server</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="w3.css">
+
+    <link rel="stylesheet" href="app.css">
+
+    <script src="Chart.js"></script>
+    <script src="app.js"></script>
+    <script src="ESPGraph.js"></script>
+    
+</head>
+
+<body class="w3-pale-blue">
+    <div class="w3-cell-row">
+        <div class="w3-container w3-teal w3-cell">
+            <h1>EasyEspWeb demo</h1>
+        </div>
+        <div class="w3-container w3-teal w3-cell" onclick>
+            <div style="float:right; width:30px;">
+                <div class="bar3"></div>
+                <div class="bar3"></div>
+                <div class="bar3"></div>
+
+            </div>
+
+
+            <label id="tijd" style="float:right; width:80px;">label</label>
+
+        </div>
+    </div>
+
+    <div class="w3-panel"></div>
+    <div class="w3-row w3-teal">
+        <div class="w3-quarter w3-container w3-green">
+
+        </div>
+        <div class="w3-quarter w3-container">
+            <h2>Temperature:</h2>
+        </div>
+        <div class="w3-quarter w3-container">
+            <h2 id="temperature"></h2>
+        </div>
+        <div class="w3-quarter w3-container">
+
+        </div>
+    </div>
+    <div class="w3-row w3-teal">
+        <div class="w3-quarter w3-container w3-green">
+
+        </div>
+        <div class="w3-quarter w3-container">
+            <h2>Pressure:</h2>
+        </div>
+        <div class="w3-quarter w3-container">
+            <h2 id="pressure"></h2>
+        </div>
+        <div class="w3-quarter w3-container">
+
+        </div>
+    </div>
+    <div id="myGraph">
+
+    </div>
+    
+
+    <div class="w3-row w3-teal">
+        <div class="w3-quarter w3-container w3-green">
+
+        </div>
+        <div class="w3-quarter w3-container">
+            <h2>Radar:</h2>
+        </div>
+        <div class="w3-quarter w3-container">
+            <h2 id="input1"></h2>
+        </div>
+        <div class="w3-quarter w3-container">
+
+        </div>
+    </div>
+
+    <button id="i2cScan" class="button" onclick="clickButton(this.id)">i2cScan</button>
+
+
+
+    <div class="w3-container">
+
+        <h3>LineChart</h3>
+        <div id="graph"></div>
+
+        <script>
+
+            var rect;
+            var svg;
+            var pl;
+
+            var myGraph;
+
+            xSize = 800;
+            ySize = 400;
+            xRast = 33.3333;
+            yRast = 50;
+            xOff = 60;
+            yOff = 60;
+
+            var points = new Array();
+            var pressArray = new Array();
+            var mArray = new Array();
+            var tArray = new Array();
+
+            function GetSvg() {
+                var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.setAttribute("width", xSize + xOff + 10);
+                svg.setAttribute("height", ySize + yOff + 10);
+                svg.setAttribute("viewBox", `0 0 ${xSize + xOff + 10} ${ySize + yOff + 10}`);
+                return svg;
+            }
+
+            function GetRect(x, y, width, height, color) {
+                rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("fill", color);
+                rect.setAttribute("x", x);
+                rect.setAttribute("y", y);
+                rect.setAttribute("width", width);
+                rect.setAttribute("height", height);
+                return rect;
+            }
+
+            function GetLine(x1, x2, y1, y2, color) {
+                line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("stroke", color);
+                line.setAttribute("x1", x1);
+                line.setAttribute("x2", x2);
+                line.setAttribute("y1", y1);
+                line.setAttribute("y2", y2);
+                return line;
+            }
+
+            function GetPolyLine(color) {
+                PolyLine = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+                PolyLine.setAttribute("fill", "none");
+                PolyLine.setAttribute("stroke", color);
+                PolyLine.setAttribute("strokeWidth", "2");
+                return PolyLine;
+            }
+
+            function GetDayData() {
+                url = 'dayData3'
+
+                //REMOVE This will be removed by CompressHTML.py and is for debugging purposes
+                url = 'http://192.168.0.98/dayData3';
+                //ENDREMOVE
+
+                fetch(url)
+                    .then(response => response.arrayBuffer())
+                    .then(buffer => {
+                        logBuffer = new Uint8Array(buffer);
+                        // Now you have the binary data as a Uint8Array
+                        //console.log(logBuffer);
+                        this.InterpretDayData(logBuffer); // Pass the fetched buffer to SetLasthour
+                    })
+                    .catch(error => {
+                        console.error('Error fetching binary data:', error);
+                    });
+            }
+
+            function InterpretDayData(data) {
+                // data structure, total size 20 bits
+                //    - epoch ulong (4 bytes)
+                //    - float temp;
+                //    - float press;
+                //    - float hum;
+                //    - 4 bytes
+                //struct Measurement{
+                //  ulong timestamp;
+                //  float temp;
+                //  float press;
+                //  float hum;
+                //  uint16_t numMeasurements;
+                //  };
+                // beware the data is padded, hence total size of the instance is 20bytes, instead of 18 which you would expect, so
+                // always check with sizeOf() at Arduino side.
+
+                mSize = 20;  // size of struct
+
+                // this is the binary data generated by the Measurement struct.
+                // this struct is sended as an array, the size of each struct instance is 20 bytes (=mSize)
+                // So here we get the individual properties of the struct
+                // create a dataview for easy access with getFloat, getInt32 etc.
+                dvData = new DataView(data.buffer);
+
+                console.log("Size of datablock:" + data.length + ", so that is:" + data.length / mSize + " entries.");
+
+                
+
+                for (mIndex = 0; mIndex < data.length; mIndex += mSize) {
+
+                    epoch = dvData.getInt32(mIndex + 0, true);
+                    temp = dvData.getFloat32(mIndex + 4, true);
+                    press = dvData.getFloat32(mIndex + 8, true);
+                    hum = dvData.getFloat32(mIndex + 12, true);
+
+                    mArray.push({ epoch: epoch, temp: temp, press: press, hum: hum });
+
+                    tArray.push({xValue: (epoch % 86400), yValue: temp});
+                }
+                drawGraph();
+
+                myGraph.AddPlot("temp", 0, 86400, 25,30);
+                myGraph.SetPlot("temp", tArray);
+
+
+            }
+
+            function add2Graph(measurement) {
+                mArray.push(measurement);
+                drawGraph();
+            }
+
+            function drawGraph() {
+                const currentEpoch = Math.floor(Date.now() / 1000);
+
+                epochMinus24H = currentEpoch - 86400
+                mArray = mArray.filter(entry => entry.epoch > epochMinus24H);  // remove points >24H:
+
+                // create the Temp line points from mArray
+                TempPoints = mArray
+                    .map(entry => `${xFromEpoch(entry.epoch)},${temp2Y(entry.temp)}`).join(' ');
+
+                // create the Press line points from mArray
+                PressPoints = mArray
+                    .map(entry => `${xFromEpoch(entry.epoch)},${press2Y(entry.press)}`).join(' ');
+
+                //console.debug("TempPoints: " + TempPoints);
+                plTemp.setAttribute("points", TempPoints);
+                plPress.setAttribute("points", PressPoints);
+            }
+
+            function xFromEpoch(epoch) {
+                return ScaleX(epoch % 86400, 0, 86400, xSize);
+            }
+
+            function ScaleX(value, min, max, xSize) {
+                xValue = (value - min) * xSize / (max - min);
+                return (xValue + xOff).toFixed(1);
+            }
+
+            function ScaleY(value, min, max, ySize) {
+                yValue = (value - min) * ySize / (max - min);
+                return (ySize - yValue + 10).toFixed(1);
+            }
+
+            function temp2Y(temp) {
+                return ScaleY(temp, 20, 30, ySize);
+            }
+
+            function press2Y(press) {
+                return ScaleY(press, 960, 1040, ySize);
+            }
+
+            document.addEventListener("DOMContentLoaded", function () {
+                InitGraph();
+
+                myGraph = new ESPLineGraph("myGraph");
+            });
+
+            function InitGraph() {
+                //svg = document.getElementById("mySvg");     // actually, create svg in parent div
+
+                svg = GetSvg();
+
+                // blue /Philips:
+                BGColor = "rgb(16,110,204)";
+                RasterColor = "rgb(5,80,173)";
+                StrokeColor = "rgb(39,230,254)";
+
+                svg.appendChild(GetRect(xOff, 10, xSize, ySize, BGColor));
+
+                // x-raster
+                for (x = xOff; x <= xSize + xOff; x += xRast) {
+                    svg.appendChild(GetLine(x, x, 10, 10 + ySize, RasterColor));
+                }
+
+                // y-raster
+                for (y = 10; y <= ySize; y += yRast) {
+                    svg.appendChild(GetLine(xOff, xOff + xSize, y, y, RasterColor));
+                }
+
+                // polyLine temperature:
+                plTemp = GetPolyLine(StrokeColor);
+                svg.appendChild(plTemp);
+
+                // polyLine pressure:
+                plPress = GetPolyLine(StrokeColor);
+                svg.appendChild(plPress);
+
+                parent = document.getElementById("graph");
+                parent.appendChild(svg);
+
+                // fill graph
+                GetDayData();
+            }
+
+        </script>
+    </div>
+</body>
+
+</html>
