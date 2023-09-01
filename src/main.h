@@ -16,7 +16,8 @@ struct Settings{
     ulong StoreMeasurementInterval = 300;
     int LogRetentionDays = 32;
 
-    bool DeleteEnabled = false;
+    bool DeleteEnabled = false;         // you can delete files from LittleFS in /dir
+    bool UploadEnabled = false;         // you can upload files to LittleFS in /dir
 };
 
 struct MultiMeasurement{

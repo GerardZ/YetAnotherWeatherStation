@@ -29,8 +29,6 @@ OTHERSGZ: []
 # Other files uncompressed. Filename example.png -> example_png
 OTHERS: [
   favicon.ico,
-  patrickNagel1.jpg,
-  Image1.jpg,
   leave3.png,
   prototype.jpg
 ]

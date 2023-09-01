@@ -139,13 +139,9 @@ class ESPLineGraph {
 
     SetPlot(name, dataSeries) {
         points = dataSeries
-            .filter(entry => !isNaN(entry.xValue) && !isNaN(entry.yValue)) // will ruin your plot
+            .filter(entry => !isNaN(entry.xValue) && !isNaN(entry.yValue)) // a NaN somewhere will ruin your plot
             .map(entry => `${this.ScaleX(entry.xValue, this.lines[name].xmin, this.lines[name].xmax).toFixed(1)},${this.ScaleY(entry.yValue, this.lines[name].ymin, this.lines[name].ymax).toFixed(1)}`).join(' ');
         this.lines[name].pl.setAttribute("points", points);
-
-        var debugPoints = dataSeries
-        //.map(entry => `${entry.xValue} ${entry.yValue} -> ${this.ScaleX(entry.xValue, this.lines[name].xmin, this.lines[name].xmax).toFixed(1)},${this.ScaleY(entry.yValue, this.lines[name].ymin, this.lines[name].ymax).toFixed(1)}`).join('\n');
-        //console.debug(debugPoints);
     }
 
     ScaleX(value, min, max) {
