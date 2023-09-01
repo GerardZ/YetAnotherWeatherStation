@@ -28,4 +28,5 @@ todo:
 - check day datafile when creating, delete if exist before starting new measurements
 - cleanup c++
 
-picture`![](/Images/yaw_html_page.png)`
+![Image](./Images/yaw_html_page.png)
+
