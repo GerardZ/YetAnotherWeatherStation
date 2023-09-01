@@ -1,0 +1,364 @@
+<head>
+    <title>Yet Another WeatherStation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="w3.css">
+
+    <link rel="stylesheet" href="app.css">
+
+    <script src="ESPGraph.js"></script>
+    <script src="ESP7Segment.js"></script>
+</head>
+
+<body class="w3-grey">
+
+    <div class="w3-panel w3-dark-grey w3-row">
+        <div class="w3-half">
+            <h1>Yet Another WeatherStation</h1>
+        </div>
+        <div class="w3-half"></div>
+        <h4 id="time" style="float:right; width:80px;">label</h4>
+    </div>
+
+
+    <div class="w3-panel w3-row w3-dark-grey">
+        <div class="w3-third ">
+            <div class="w3-third">
+                <h4>Temp:</h4>
+            </div>
+            <div class="w3-third" style="padding: 6px 0px;">
+                <div id="7segTemp"></div>
+            </div>
+            <div class="w3-third">
+                <div class="w3-half">&nbsp;</div>
+                <div class="w3-half">
+                    <h4>&degC</h4>
+                </div>
+            </div>
+        </div>
+        <div class="w3-third">
+            <div class="w3-row">
+                <div class="w3-col" style="width:50px">
+                    <h4>Press:</h4>
+                </div>
+                <div class="w3-col" style="width:150px; padding: 6px 0px;">
+                    <div id="7segPress"></div>
+
+                </div>
+                <div class="w3-rest">
+                    <h4>hPa</h4>
+                </div>
+
+            </div>
+        </div>
+        <div class="w3-third">
+            <div class="w3-row">
+                <div class="w3-col" style="width:50px">
+                    <h4>Hum:</h4>
+                </div>
+
+                <div class="w3-col" style="width:150px; padding: 6px 0px;">
+                    <div id="7segHum"></div>
+                </div>
+                <div class="w3-rest">
+                    <h4>%</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w3-panel w3-row w3-dark-grey">
+
+        <div class="w3-container w3-dark-grey">
+            <h6>Temperature 24H:</h6>
+            <div id="tempChart"></div>
+        </div>
+
+        <div class="w3-container w3-dark-grey">
+            <h6>Pressure 24H:</h6>
+            <div id="pressChart"></div>
+        </div>
+
+        <div class="w3-container w3-dark-grey">
+            <h6>Humidity 24H:</h6>
+            <div id="humChart"></div>
+        </div>
+    </div>
+
+
+
+    <script>
+        //REMOVE This will be removed by CompressHTML.py and is for debugging purposes
+        EspHost = '192.168.0.227' // we need this for debugging websockets and loading data, it makes sure we connect to the ESP32
+        //ENDREMOVE
+
+        var disp7Temp;
+        var disp7Press;
+        var disp7Hum;
+
+        var measurements = new Array();
+
+        const zeroPad = (num, places) => String(num).padStart(places, '0');
+
+        const DataRetentionDays = 32;
+
+        document.addEventListener("DOMContentLoaded", function () {
+
+            InitGraph();
+            init7Segment();
+            InitWs();
+        });
+
+        function InitWs() {
+            host = location.host;
+
+            //REMOVE This will be removed by CompressHTML.py and is for debugging purposes
+            if (location.host.startsWith('127.0.0')) { host = EspHost; }
+            console.log("Host is: " + host);
+            //ENDREMOVE
+
+            socket = new WebSocket(SecureOrNotWs() + host + '/ws');
+            socket.onopen = onOpen;
+            socket.onclose = onClose;
+            socket.onmessage = onMessage;
+        }
+
+        function isHttps() {        // important for proxy SSL-offloading...
+            return (document.location.protocol == 'https:');
+        }
+
+        function SecureOrNotWs() {
+            if (document.location.protocol == 'https:') return "wss://";
+            return "ws://";
+        }
+
+        function onOpen(event) {
+            console.log('Connection opened');
+        }
+
+        function onClose(event) {
+            console.log('Connection closed');
+            setTimeout(InitWs, 2000);
+        }
+
+        function onMessage(event) {
+            ParseJson(event.data);
+        }
+
+        function ParseJson(jsonString) {
+
+            console.debug(jsonString);
+
+            var jsonObject = JSON.parse(jsonString);
+
+            //console.debug(jsonObject);
+
+            if (jsonObject) {
+                if (Object.hasOwn(jsonObject, 'env')) {
+                    handleEnv(jsonObject.env);
+                }
+                if (Object.hasOwn(jsonObject, 'time')) {
+                    handleTime(jsonObject.time);
+                }
+
+            }
+        }
+
+        function handleTime(jsonObj) {
+            document.getElementById("time").innerHTML = jsonObj.string;
+
+        }
+
+        function handleEnv(jsonObj) {
+            set7Segment(jsonObj);
+            if (jsonObj?.stored ?? false) {
+                console.debug("added to graph...");
+                add2Graph(jsonObj);
+            }
+        }
+
+        function init7Segment() {
+            disp7Temp = new ESP7Segment("7segTemp", 4, 30);
+            disp7Press = new ESP7Segment("7segPress", 5, 30);
+            disp7Hum = new ESP7Segment("7segHum", 4, 30);
+        }
+
+        function set7Segment(data) {
+            this.disp7Temp.SetValue(data.temp.toFixed(1));
+            this.disp7Press.SetValue(data.press.toFixed(1));
+            this.disp7Hum.SetValue(data.hum.toFixed(1));
+
+        }
+
+        function add2Graph(measurement) {
+            measurements.push(measurement);
+            Measurements2Plots();
+            return;
+        }
+
+        function InitGraph() {
+            tempChart = new ESPLineGraph("tempChart", 0, 86400, 700, 150, "grey");
+            tempChart.AddPlot("temp", 0, 86400, 20, 30);
+
+            pressChart = new ESPLineGraph("pressChart", 0, 86400, 700, 150, "grey");
+            pressChart.AddPlot("press", 0, 86400, 1010, 1030);
+
+            humChart = new ESPLineGraph("humChart", 0, 86400, 700, 150, "grey");
+            humChart.AddPlot("hum", 0, 86400, 0, 100);
+
+            GetDayData();
+        }
+
+        async function fetchBinary(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.error('Network response was not ok');
+                //throw new Error('Network response was not ok');
+                return new Blob([new Uint8Array()], { type: 'application/octet-stream' });
+            }
+            return await response.blob();
+        }
+
+        async function GetDayData() {
+
+            epoch = Date.now() / 1000;
+
+            currentDayFileIndex = Math.trunc((epoch / 86400) % DataRetentionDays);
+            previousDayFileIndex = currentDayFileIndex - 1;
+            if (previousDayFileIndex < 0) previousDayFileIndex + DataRetentionDays;
+
+            var currentDataFileUrl = `day${zeroPad(currentDayFileIndex, 2)}.dat`;
+            var previousDataFileUrl = `day${zeroPad(previousDayFileIndex, 2)}.dat`;
+
+            console.debug(`Current datafile id is: ${currentDataFileUrl}.`);
+
+            //REMOVE This will be removed by CompressHTML.py and is for live server to enable the webpage Websockets to connect to your ESP, 
+            // change the ip to your needs.
+            currentDataFileUrl = 'http://' + EspHost + '/' + currentDataFileUrl;  // retreive data from esp.
+            previousDataFileUrl = 'http://' + EspHost + '/' + previousDataFileUrl;  // retreive data from esp.
+            //ENDREMOVE
+
+            const PreviousDayData = await fetchBinary(previousDataFileUrl);
+            const currentDataFileData = await fetchBinary(currentDataFileUrl);
+
+            dataBlob = new Blob([PreviousDayData, currentDataFileData], { type: currentDataFileData.type });
+
+            const dataView = await blobToDataView(dataBlob);
+
+            this.InterpretDayData(dataView);
+        }
+
+        function blobToArrayBuffer(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onloadend = function (event) {
+                    resolve(reader.result);
+                };
+
+                reader.onerror = function (error) {
+                    reject(error);
+                };
+
+                reader.readAsArrayBuffer(blob);
+            });
+        }
+
+        async function blobToDataView(blob) {
+            const arrayBuffer = await blobToArrayBuffer(blob);
+            return new DataView(arrayBuffer);
+        }
+
+        function InterpretDayData(dataViewData) {
+            mSize = 20;  // size of struct ESP-side
+
+            console.log("Size of datablock:" + dataViewData.byteLength + ", so that is:" + dataViewData.byteLength / mSize + " entries.");
+
+            epochNow = Date.now() / 1000;
+            epochMinusDay = epochNow - 86400;
+            xOffset = 86400 - (epochNow % 86400);
+
+            for (mIndex = 0; mIndex < dataViewData.byteLength; mIndex += mSize) {
+
+                epoch = dataViewData.getInt32(mIndex + 0, true);
+                temp = dataViewData.getFloat32(mIndex + 4, true);
+                press = dataViewData.getFloat32(mIndex + 8, true);
+                hum = dataViewData.getFloat32(mIndex + 12, true);
+
+                // hacky:
+                if ((epoch > epochMinusDay) && (temp != NaN)) {
+                    xValue = (epoch + xOffset) % 86400
+
+                    measurements.push({ epoch: epoch, temp: temp, press: press, hum: hum });
+                }
+            }
+            // it is possible we already have a measurement from websockets directly, this will interfere with
+            // the plot since its time will not be in order. So:
+            measurements = measurements.sort((a, b) => a.epoch - b.epoch);
+
+            Measurements2Plots();
+        }
+
+        function Measurements2Plots() {
+
+            lastMeasurementEpoch = measurements[measurements.length - 1].epoch;
+
+            //epochNow = Date.now() / 1000;
+            epochMinusDay = lastMeasurementEpoch - 86400;
+            xOffset = 86400 - (lastMeasurementEpoch % 86400) - 1;
+
+            measurements = measurements.filter( // remove old measurements
+                m => m.epoch > epochMinusDay
+            );
+
+            tPlot = new Array();
+            pPlot = new Array();
+            hPlot = new Array();
+
+            tMin = measurements[0].temp;
+            tMax = measurements[0].temp;
+            pMin = measurements[0].press;
+            pMax = measurements[0].press;
+            hMin = measurements[0].hum;
+            hMax = measurements[0].hum;
+
+            measurements.forEach(measurement => {
+                xValue = (measurement.epoch + xOffset) % 86400
+                tPlot.push({ xValue: xValue, yValue: measurement.temp });
+                pPlot.push({ xValue: xValue, yValue: measurement.press });
+                hPlot.push({ xValue: xValue, yValue: measurement.hum });
+
+                if (tMin > measurement.temp) tMin = measurement.temp;
+                if (tMax < measurement.temp) tMax = measurement.temp;
+                if (pMin > measurement.press) pMin = measurement.press;
+                if (pMax < measurement.press) pMax = measurement.press;
+                if (hMin > measurement.hum) hMin = measurement.hum;
+                if (hMax < measurement.hum) hMax = measurement.hum;
+            });
+
+            tempChart.SetXRaster(24, (86400 - lastMeasurementEpoch - 7200) % 86400);
+            tempChart.SetYRaster("temp", DownCeil(tMin, 2), UpCeil(tMax, 2), ((tMax-tMin) > 10)? 10 :1);
+            tempChart.SetPlot("temp", tPlot);
+
+            pressChart.SetXRaster(24, (86400 - lastMeasurementEpoch - 7200) % 86400);
+            pressChart.SetYRaster("press", DownCeil(pMin, 10), UpCeil(pMax, 10), 5);
+            pressChart.SetPlot("press", pPlot);
+
+            humChart.SetXRaster(24, (86400 - lastMeasurementEpoch - 7200) % 86400);
+            humChart.SetYRaster("hum", DownCeil(hMin, 10), UpCeil(hMax, 10), 10);
+            humChart.SetPlot("hum", hPlot);
+        }
+
+        function UpCeil(number, range = 1) { // return the next integer or range
+            return Math.ceil(number / range) * range;
+        }
+
+        function DownCeil(number, range = 1) { // return the next integer or range
+            return Math.ceil((number / range) - 1) * range;
+        }
+
+    </script>
+
+</body>
+
+</html>
