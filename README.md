@@ -1,15 +1,15 @@
 # Yet another WeatherStation
 
-This project is not finished and is for experiments. Though it is already very useable.
+This project is not fully finished and may contain bugs. Though it is already very useable.
 
-It uses a ESP12E (ESP8266 8mbit flash) and a BME280 sensor.
+Based on a ESP12E (ESP8266 8Mbit flash) and a BME280 sensor.
 
-This project was emerged from the creating a compress-utility for compressing HTML, to counter the burden of converting html to PROGMEM or uploading through file FS-upload.
+This project was emerged from creating a compress-utility for compressing HTML, to counter the burden of converting html to PROGMEM or uploading through file FS-upload.
 
 It has some interesting features (I think):
 
 - Asycwebserver with websockets
-- Logging of temp/hum/press of the past 24H (internally 32 days)
+- Logging of temp/hum/press of the past 24H (internally 32 days, so could be expanded to look-back a month)
 - A compress utility that will converge index.html with local .css and .js files, compress the resulting html and create a PROGMEM byte-array in the apphtml.h in the include folder.  
   Compression will result in an approx 70-80% reduction of file size, the PROGMEM data then can be send to the webclient with "Content-Encoding", "gzip".  
   server.on("/", HTTP_GET, \[\](AsyncWebServerRequest \*request) // send gzipped index (gzip))  
@@ -25,8 +25,13 @@ It has some interesting features (I think):
 
 todo:
 
-- check day datafile when creating, delete if exist before starting new measurements
 - cleanup c++
+- Month and date lookback
+- use Sd-card for storage instead of flash to hold data and look back virtually infinite
+- expansion with other sensors, rain, wind, sun, pollution, etc.
 
 ![Image](./Images/yaw_html_page.png)
 
+Remarks:
+- this is ment for building with PlatformIO
+- You will need to init LittleFs first time to use this !
