@@ -7,6 +7,11 @@ struct Status{
     char lastEnvMessage[200];
 };
 
+struct WifiSettings{
+    char ssid[32]; // = "_THOES_\0";
+    char password[64]; // = "blablabla\0";
+};
+
 struct Settings{
     char Hostname[20] = "EasyEspWeb\0";
     
@@ -18,6 +23,7 @@ struct Settings{
 
     bool DeleteEnabled = false;         // you can delete files from LittleFS in /dir
     bool UploadEnabled = false;         // you can upload files to LittleFS in /dir
+    bool ShowHiddenFiles = true;
 };
 
 struct MultiMeasurement{

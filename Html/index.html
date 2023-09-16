@@ -225,7 +225,7 @@
 
             currentDayFileIndex = Math.trunc((epoch / 86400) % DataRetentionDays);
             previousDayFileIndex = currentDayFileIndex - 1;
-            if (previousDayFileIndex < 0) previousDayFileIndex + DataRetentionDays;
+            if (previousDayFileIndex < 0) previousDayFileIndex = previousDayFileIndex + DataRetentionDays;
 
             var currentDataFileUrl = `day${zeroPad(currentDayFileIndex, 2)}.dat`;
             var previousDataFileUrl = `day${zeroPad(previousDayFileIndex, 2)}.dat`;
