@@ -14,6 +14,7 @@ DESTINATIONFILE:
 HTML: [
   index.html,
   page404.html,
+  InitWifiIndex.html
 ]
 
 # MARKDOWN: this will convert a markdown to html and compressed, beware that it is taken from the projects root NOT from SOURCEDIR.
