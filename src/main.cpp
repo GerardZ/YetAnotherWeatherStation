@@ -3,8 +3,12 @@
 #include "LittleFS.h"
 
 #include <ESP8266WiFi.h>
+
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+// #include <ESPAsyncDNSServer.h>
+//  #include <ESPAsync_WiFiManager.h>
+
 #include <ArduinoJson.h>
 
 #include <time.h> // time() ctime()
@@ -22,10 +26,6 @@
 
 #define RADAR 14 // Gpio14 -> D5
 
-/* Configuration of NTP */
-#define MY_NTP_SERVER "at.pool.ntp.org"
-#define MY_TZ "CET-1CEST,M3.5.0/02,M10.5.0/03"
-
 #include "main.h"
 
 // this contains HTML data and other binary sources, generated with CompressHtml:
@@ -36,8 +36,8 @@ time_t now;   // this is the epoch
 struct tm tm; // the structure tm holds time information in a more convenient way
 
 // Replace with your network credentials
-const char *ssid = "_yourSsid_";
-const char *password = "_yourWifiPw_";
+// const char *ssid = "_THOES_";
+// const char *password = "0598613193";
 
 StaticJsonDocument<1000> jsonDoc;
 
@@ -46,8 +46,6 @@ Status status;
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
-
-uint8_t recordBuffer[10800]; // 1 bit per second, 8x10080 gives 86400 (= 1 day)
 
 // ntp...
 const char *ntpServer = "pool.ntp.org";
@@ -204,6 +202,39 @@ void StoreBME(ulong epoch)
   ws.textAll(status.lastEnvMessage);
 }
 
+void StoreWifiCreds(WifiSettings &wifiSettings)
+{
+  File file = LittleFS.open(".WifiCreds.dat", "w");
+
+  if (file)
+  {
+    file.write(reinterpret_cast<const char *>(&wifiSettings), sizeof(wifiSettings));
+    file.close();
+    Serial.println("Wifi credentials were saved !");
+  }
+  else
+  {
+    Serial.println("ERROR: Wifi credentials were NOT saved !");
+  }
+}
+
+bool LoadWifiCreds(WifiSettings &wifiSettings)
+{
+  if (LittleFS.exists(".WifiCreds.dat"))
+  {
+    File file = LittleFS.open(".WifiCreds.dat", "r");
+
+    if (file)
+    {
+      file.read((uint8_t *)&wifiSettings, sizeof(wifiSettings));
+      file.close();
+
+      return true;
+    }
+  }
+  return false;
+}
+
 void notifyClients()
 {
   // ws.textAll(String(ledState));
@@ -291,22 +322,43 @@ void setup()
 
   InitLittleFS();
 
-  String newHostname = "EasyEspWeb";
-
   // Connect to Wi-Fi
-  WiFi.hostname(newHostname.c_str());
-  WiFi.begin(ssid, password);
+
+  struct WifiSettings wifiSettings;
+
+  // StoreWifiCreds(wifiSettings);
+  if (LoadWifiCreds(wifiSettings))
+  {
+    Serial.print("WifiCreds for: ");
+    Serial.print(wifiSettings.ssid);
+    Serial.println(" were loaded from LittleFS...");
+  }
+  WiFi.hostname(settings.Hostname);
+  WiFi.begin(wifiSettings.ssid, wifiSettings.password);
+
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
     Serial.println("Connecting to WiFi..");
   }
 
-  configTime(MY_TZ, MY_NTP_SERVER); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
-                                    // printLocalTime();
+  configTime(settings.TimeZoneString, settings.NtpServer); // --> This is al for NTP to configure...
+                                                           // printLocalTime();
 
   // Print ESP Local IP Address
   Serial.println(WiFi.localIP());
+
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+
+  Serial.print("MAC Address (Bytes): ");
+  for (int i = 0; i < 6; i++)
+  {
+    Serial.printf("%02X", mac[i]);
+    if (i < 5)
+      Serial.print(":");
+  }
+  Serial.println();
 
   initWebSocket();
 
@@ -345,14 +397,6 @@ void setup()
   server.on("/prototype.jpg", HTTP_GET, [](AsyncWebServerRequest *request)
             {
               AsyncWebServerResponse *response = request->beginResponse_P(200, "image/jpg", prototype_jpg, sizeof(prototype_jpg));
-              request->send(response); });
-
-  server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) // send logged data from array
-            {
-              AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", recordBuffer, sizeof(recordBuffer));
-              response->addHeader("Access-Control-Allow-Origin", "*");
-              response->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-              response->addHeader("Access-Control-Allow-Headers", "Content-Type");
               request->send(response); });
 
   server.on("/upload.html", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -403,23 +447,25 @@ void setup()
     Dir dir = LittleFS.openDir("/");
     while (dir.next()) {
         String fileName = dir.fileName();
-        File file = LittleFS.open(fileName, "r");
-        html += "<li><a href=\"" + fileName + "\">" + fileName + " (";
-        if (file) {
-          size_t fileSize = file.size();
-          file.close();
-          html += fileSize;
+        if (!fileName.startsWith(".") || settings.ShowHiddenFiles){
+          File file = LittleFS.open(fileName, "r");
+          html += "<li><a href=\"" + fileName + "\">" + fileName + " (";
+          if (file ) {
+            size_t fileSize = file.size();
+            file.close();
+            html += fileSize;
+          }
+          else{
+            html += " - ";
+          }
+          html += ")</a>";
+          if (settings.DeleteEnabled){
+          html += "<a href=\"/delete?fileName=/";
+          html += fileName;
+          html += "\"><img src=\"bin.png\" \\>";
+          }
+          html += " </li>";
         }
-        else{
-          html += " - ";
-        }
-        html += ")</a>";
-        if (settings.DeleteEnabled){
-        html += "<a href=\"/delete?fileName=/";
-        html += fileName;
-        html += "\"><img src=\"bin.png\" \\>";
-        }
-        html += " </li>";
     }
     html += "</ul>";
 
