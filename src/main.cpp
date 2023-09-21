@@ -7,9 +7,12 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 // #include <ESPAsyncDNSServer.h>
-//  #include <ESPAsync_WiFiManager.h>
+#include <DNSServer.h>
+
 
 #include <ArduinoJson.h>
+
+#include <xxtea-lib.h>
 
 #include <time.h> // time() ctime()
 
@@ -46,6 +49,8 @@ Status status;
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+
+DNSServer dnsServer;
 
 // ntp...
 const char *ntpServer = "pool.ntp.org";
@@ -218,6 +223,41 @@ void StoreWifiCreds(WifiSettings &wifiSettings)
   }
 }
 
+// void StoreWifiCredsEnc(WifiSettings &wifiSettings)
+// {
+//   // Key for Encrypt - ! Carefull no to more than 16 bytes ! - Or See `Limitations`
+//   uint8_t keybuf[] = "guA5vkMSGDP6h5e4";
+
+//   File file = LittleFS.open(".WifiCreds.dat", "w");
+
+//   if (file)
+//   {
+//     size_t len = 200;
+//     uint8_t buffer[len], i;
+
+//     if (xxtea_encrypt(<const uint8_t *>(&wifiSettings), sizeof(wifiSettings), buffer, &len) != XXTEA_STATUS_SUCCESS)
+//     {
+//       Serial.println(" Encryption Failed!");
+//       return;
+//     }
+//     else
+//     {
+//       Serial.println(" Encrypted Data: ");
+//       for (i = 0; i < len; i++)
+//         Serial.print(buffer[i], HEX);
+//       Serial.println();
+//     }
+
+//     file.write(reinterpret_cast<const char *>(&wifiSettings), sizeof(wifiSettings));
+//     file.close();
+//     Serial.println("Wifi credentials were saved !");
+//   }
+//   else
+//   {
+//     Serial.println("ERROR: Wifi credentials were NOT saved !");
+//   }
+// }
+
 bool LoadWifiCreds(WifiSettings &wifiSettings)
 {
   if (LittleFS.exists(".WifiCreds.dat"))
@@ -334,19 +374,30 @@ void setup()
     Serial.println(" were loaded from LittleFS...");
   }
   WiFi.hostname(settings.Hostname);
-  WiFi.begin(wifiSettings.ssid, wifiSettings.password);
 
-  while (WiFi.status() != WL_CONNECTED)
+  if (status.ConnectToWifi) // start Normal
   {
-    delay(1000);
-    Serial.println("Connecting to WiFi..");
+
+    WiFi.begin(wifiSettings.ssid, wifiSettings.password);
+
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(1000);
+      Serial.println("Connecting to WiFi..");
+    }
+
+    configTime(settings.TimeZoneString, settings.NtpServer); // --> This is al for NTP to configure...
+                                                             // printLocalTime();
+
+    // Print ESP Local IP Address
+    Serial.println(WiFi.localIP());
   }
+  else  // Handle WifiSettings
+  {
+    WiFi.softAP("ESP-WIFI-MANAGER", NULL);
 
-  configTime(settings.TimeZoneString, settings.NtpServer); // --> This is al for NTP to configure...
-                                                           // printLocalTime();
-
-  // Print ESP Local IP Address
-  Serial.println(WiFi.localIP());
+    dnsServer.start(53, "*", WiFi.softAPIP());
+  }
 
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -374,9 +425,50 @@ void setup()
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) // send gzipped index (gzip))
             {
-              AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html_gz, sizeof(index_html_gz));
+              AsyncWebServerResponse *response;
+
+              if (status.ConnectToWifi){
+                response = request->beginResponse_P(200, "text/html", index_html_gz, sizeof(index_html_gz));
+                }
+              else{
+                response = request->beginResponse_P(200, "text/html", InitWifiIndex_html_gz, sizeof(InitWifiIndex_html_gz));
+                }         
+
+
               response->addHeader("Content-Encoding", "gzip");
               request->send(response); });
+
+  server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+      WifiSettings wifiSettings;
+
+      int params = request->params();
+      bool gotSsid = false;
+      bool gotPass = false;
+
+      for(int i=0;i<params;i++){
+        AsyncWebParameter* p = request->getParam(i);
+        if(p->isPost()){
+          // HTTP POST ssid value
+          if (p->name() == "ssid") {
+            //wifiSettings.ssid = p->value().c_str();
+            strncpy(wifiSettings.ssid, p->value().c_str(), sizeof(wifiSettings.ssid) - 1);
+            gotSsid = true;
+          }
+          // HTTP POST pass value
+          if (p->name() == "pass") {
+            //wifiSettings.password = p->value().c_str();
+            strncpy(wifiSettings.password, p->value().c_str(), sizeof(wifiSettings.password) - 1);
+            gotPass = true;
+          }
+        }
+      }
+      if (gotPass && gotSsid){
+        StoreWifiCreds(wifiSettings);
+      }
+      request->send(200, "text/plain", "Done. ESP will restart now.");
+      delay(3000);
+      ESP.restart(); });
 
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
             {
@@ -576,6 +668,8 @@ bool NewSecond()
 void loop()
 {
   ws.cleanupClients();
+
+  dnsServer.processNextRequest();
 
   if (NewSecond())
   {

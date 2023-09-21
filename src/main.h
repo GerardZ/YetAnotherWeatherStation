@@ -1,10 +1,11 @@
 #include <Arduino.h>
 
-
 struct Status{
     int32_t currentMeasurementDay = -1;   // current day of measurements
     uint8_t numWsClients;
     char lastEnvMessage[200];
+
+    bool ConnectToWifi = true;
 };
 
 struct WifiSettings{

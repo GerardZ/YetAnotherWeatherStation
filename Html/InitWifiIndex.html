@@ -19,19 +19,33 @@
       <div class="card">
         <form action="/" method="POST">
           <p>
-            <label for="ssid">SSID</label>
-            <input type="text" id ="ssid" name="ssid"><br>
-            <label for="pass">Password</label>
-            <input type="text" id ="pass" name="pass"><br>
-            <label for="ip">IP Address</label>
-            <input type="text" id ="ip" name="ip" value="192.168.1.200"><br>
-            <label for="gateway">Gateway Address</label>
-            <input type="text" id ="gateway" name="gateway" value="192.168.1.1"><br>
-            <input type ="submit" value ="Submit">
+            <p><label>Please enter your Wifi credentials:</label></p>
+            <label for="ssid" style="display: inline-block; width:80px;">SSID</label>
+            <input type="text" id ="ssid" name="ssid" onkeyup="CheckInput();"><br>
+            <label for="pass" style="display: inline-block; width:80px;">Password</label>
+            <input type="text" id ="pass" name="pass" onkeyup="CheckInput();"><br>
+            <input type ="submit" value ="Submit" id="submitButton" style="display:none" >
           </p>
         </form>
       </div>
     </div>
   </div>
 </body>
+
+<script>
+  function CheckInput(){
+    ssid = document.getElementById("ssid").value;
+    pass = document.getElementById("pass").value;
+
+    if(ssid != "" && pass != "") {
+      document.getElementById("submitButton").style.display = "inline-block";
+    }
+    else{
+      document.getElementById("submitButton").style.display = "none";
+    }
+    
+  }
+
+
+</script>
 </html>
