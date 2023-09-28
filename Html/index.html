@@ -207,6 +207,18 @@
             humChart.AddPlot("hum", 0, 86400, 0, 100);
 
             GetDayData();
+
+            GetDayData2();
+        }
+
+        async function fetchBinary2DataView(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.error('Network response was not ok');
+                //throw new Error('Network response was not ok');
+                return new Blob([new Uint8Array()], { type: 'application/octet-stream' });
+            }
+            return new DataView(await blobToArrayBuffer(await response.blob()));
         }
 
         async function fetchBinary(url) {
@@ -219,9 +231,56 @@
             return await response.blob();
         }
 
+        async function GetDayData2() {
+            epoch = Date.now() / 1000;
+            currentDayFileIndex = Math.trunc(epoch / 86400);
+
+            currentDataFileUrl = 'http://' + EspHost + '/d' + currentDayFileIndex + ".dat";  // retreive data from esp.
+            previousDataFileUrl = 'http://' + EspHost + '/d' + (currentDayFileIndex - 1) + ".dat";  // retreive data from esp.
+
+            const PreviousDayData = await fetchBinary2DataView(previousDataFileUrl);
+            const currentDataFileData = await fetchBinary2DataView(currentDataFileUrl);
+
+            // convert it all in an arraut
+            recordSize = 8;
+
+            dayEpoch = currentDayFileIndex * 86400;
+
+            var data = measurementDataView2Array(PreviousDayData, currentDayFileIndex - 86400);
+            data = data.concat(measurementDataView2Array(currentDataFileData, currentDayFileIndex));
+
+            data = measurementDataView2Array(PreviousDayData, currentDayFileIndex - 86400).concat(measurementDataView2Array(currentDataFileData, currentDayFileIndex));
+
+
+        }
+
+        function measurementDataView2Array(dv, baseEpoch) {
+            recordSize = 8;
+            for (mIndex = 0; mIndex < dv.byteLength; mIndex += recordSize) {
+                epoch = dv.getUint16(mIndex + 0, true) * 60 + dayEpoch;
+                temp = dv.getInt16(mIndex + 2, true) / 100;
+                press = dv.getUint16(mIndex + 4, true) / 16;
+                hum = dv.getUint8(mIndex + 6, true) / 2;
+
+                console.log(epoch + " - " + temp + " - " + press + " - " + hum);
+
+
+            }
+        }
+
+        function blobToArrayBuffer(blob) {
+            return new Promise((resolve, reject) => {
+                let reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(blob);
+            });
+        }
+
         async function GetDayData() {
 
             epoch = Date.now() / 1000;
+
 
             currentDayFileIndex = Math.trunc((epoch / 86400) % DataRetentionDays);
             previousDayFileIndex = currentDayFileIndex - 1;
@@ -337,7 +396,7 @@
             });
 
             tempChart.SetXRaster(24, (86400 - lastMeasurementEpoch - 7200) % 86400);
-            tempChart.SetYRaster("temp", DownCeil(tMin, 2), UpCeil(tMax, 2), ((tMax-tMin) > 10)? 10 :1);
+            tempChart.SetYRaster("temp", DownCeil(tMin, 2), UpCeil(tMax, 2), ((tMax - tMin) > 10) ? 10 : 1);
             tempChart.SetPlot("temp", tPlot);
 
             pressChart.SetXRaster(24, (86400 - lastMeasurementEpoch - 7200) % 86400);

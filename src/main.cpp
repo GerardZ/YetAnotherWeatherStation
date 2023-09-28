@@ -31,6 +31,8 @@
 
 #include "main.h"
 
+#include "dir.h"
+
 // this contains HTML data and other binary sources, generated with CompressHtml:
 #include <appdata.h>
 
@@ -63,6 +65,7 @@ Settings settings;
 
 void Report();
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
+void StoreNewMeasurement(ulong epoch, Measurement &measurement);
 
 void i2cScan()
 {
@@ -205,6 +208,32 @@ void StoreBME(ulong epoch)
 
   CreateMeasurementJsonString(status.lastEnvMessage, epoch, measurement.temp, measurement.press, measurement.hum, true);
   ws.textAll(status.lastEnvMessage);
+
+  StoreNewMeasurement(epoch, measurement);
+}
+
+void StoreNewMeasurement(ulong epoch, Measurement &measurement){
+  int epochDay = epoch / 86400;
+  uint16_t minute = epoch % 86400 / 60;
+  char filename[16];
+
+  sprintf(filename, "d%d.dat", epochDay);
+
+  Serial.printf("Storing new measurements in file: %s.\n", filename);
+
+  File file = LittleFS.open(filename, LittleFS.exists(filename) ? "a" : "w");
+
+  NewMeasurement newMeasurement;
+
+  newMeasurement.minute = minute;
+  newMeasurement.temp = measurement.temp * 100;
+  newMeasurement.pressure = measurement.press * 16;
+  newMeasurement.hum = measurement.hum * 2;
+
+  // Save;
+  file.write(reinterpret_cast<const char *>(&newMeasurement), sizeof(newMeasurement));
+  file.close();
+
 }
 
 void StoreWifiCreds(WifiSettings &wifiSettings)
@@ -534,6 +563,12 @@ void setup()
 
   server.on("/dir", HTTP_GET, [](AsyncWebServerRequest *request)
             {
+                ServeDir(request);
+            });
+
+  server.on("/dir2", HTTP_GET, [](AsyncWebServerRequest *request)
+            {
+
     String html = "<h2>Files on LittleFS:</h2><ul>";
 
     Dir dir = LittleFS.openDir("/");

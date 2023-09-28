@@ -19,7 +19,7 @@ struct Settings{
     char TimeZoneString[64] = "CET-1CEST,M3.5.0/02,M10.5.0/03\0";  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
     char NtpServer[64] = "nl.pool.ntp.org\0";
 
-    ulong StoreMeasurementInterval = 300;
+    ulong StoreMeasurementInterval = 300;       // 300 seconds => 5 minutes
     int LogRetentionDays = 32;
 
     bool DeleteEnabled = false;         // you can delete files from LittleFS in /dir
@@ -35,7 +35,7 @@ struct MultiMeasurement{
     uint16_t numMeasurements;
 };
 
-struct Measurement{
+struct Measurement{     // 20 bytes...
     ulong timestamp;
     float temp;
     float press;
@@ -43,6 +43,21 @@ struct Measurement{
     uint16_t numMeasurements;
 };
 
+struct NewMeasurement{  // 8 bytes...
+    u_int16_t minute;   // minute of the day/measurement
+    int16_t temp;       // temp *100
+    uint16_t pressure;  // pressure * 16
+    uint8_t hum;        // humidity * 2
+};
+
+// gain is 2x, we could do 3x, enlarging littleFS to 3MB also 3x, result 32 *2 *3 *3
+
+// 20 bytes, every 5 minutes -> 24 * 12 * 20 bytes = 5760bytes
+// @ 1MB => 170 days
+// shrinking struct 2x -> 340 days
+// enlarging FS 3x -> 1020 days
+//
+// Or: 32GB SD => 5.9 M days...
 
 // measurement for storage
 // we got 1MB storage
